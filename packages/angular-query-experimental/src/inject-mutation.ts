@@ -54,12 +54,22 @@ export function injectMutation<
 
     return lazyInit(() =>
       runInInjectionContext(currentInjector, () => {
+        /**
+         * Signal that has the default options from query client applied
+         * computed() is used so signals can be inserted into the options
+         * making it reactive. Wrapping options in a function ensures embedded expressions
+         * are preserved and can keep being applied after signal changes
+         */
+        const defaultedOptionsSignal = computed(() =>
+          queryClient.defaultMutationOptions(optionsFn(queryClient)),
+        )
+
         const observer = new MutationObserver<
           TData,
           TError,
           TVariables,
           TContext
-        >(queryClient, optionsFn(queryClient))
+        >(queryClient, defaultedOptionsSignal())
         const mutate: CreateMutateFunction<
           TData,
           TError,
@@ -70,7 +80,9 @@ export function injectMutation<
         }
 
         effect(() => {
-          observer.setOptions(optionsFn(queryClient))
+          const defaultedOptions = defaultedOptionsSignal()
+
+          observer.setOptions(defaultedOptions)
         })
 
         const result = signal(observer.getCurrentResult())

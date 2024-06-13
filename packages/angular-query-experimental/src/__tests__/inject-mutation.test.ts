@@ -1,8 +1,8 @@
-import { Component, input, signal } from '@angular/core'
-import { QueryClient } from '@tanstack/query-core'
+import { Component, Injectable, inject, input, signal } from '@angular/core'
 import { TestBed } from '@angular/core/testing'
-import { describe, expect, vi } from 'vitest'
 import { By } from '@angular/platform-browser'
+import { QueryClient } from '@tanstack/query-core'
+import { describe, expect, vi } from 'vitest'
 import { injectMutation } from '../inject-mutation'
 import { provideAngularQuery } from '../providers'
 import {
@@ -454,5 +454,50 @@ describe('injectMutation', () => {
     })
 
     await expect(() => mutateAsync()).rejects.toThrowError(err)
+  })
+
+  describe('injection context', () => {
+    beforeEach(() => {
+      vi.useRealTimers()
+    })
+    test('should run options in injection context', () => {
+      const errorSpy = vi.fn()
+      @Injectable()
+      class FakeService {
+        postData(name: string) {
+          return Promise.resolve(name)
+        }
+      }
+
+      @Component({
+        selector: 'app-fake',
+        template: `{{ mutation.data() }}`,
+        standalone: true,
+        providers: [FakeService],
+      })
+      class FakeComponent {
+        mutation = injectMutation(() => {
+          try {
+            const service = inject(FakeService)
+
+            return {
+              mutationKey: ['fake'],
+              mutationFn: () => {
+                return service.postData('name')
+              },
+            }
+          } catch (e) {
+            errorSpy(e)
+            throw e
+          }
+        })
+      }
+
+      const fixture = TestBed.createComponent(FakeComponent)
+
+      fixture.detectChanges()
+
+      expect(errorSpy).not.toHaveBeenCalled()
+    })
   })
 })
